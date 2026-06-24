@@ -3,9 +3,6 @@
 Extensión de Chrome que vigila la sección de un docente en **Asignación de cursos UVG**
 (`asignaciones.uvg.edu.gt`) y se cambia **automáticamente** en cuanto se libera un cupo.
 
-Pensada para el caso: estás en **CC3084 - DATA SCIENCE** sección -STAFF- y quieres la sección
-del docente **MARROQUÍN RODRÍGUEZ, ERICK FRANCISCO** (que está en 0 cupos).
-
 ---
 
 ## 📦 Instalación
@@ -42,7 +39,7 @@ Edita la sección `CONFIG` al inicio de **`content.js`** y recarga la extensión
 | Opción | Qué hace | Por defecto |
 |---|---|---|
 | `COURSE_TEXT` | Texto del curso/acordeón a abrir | `"DATA SCIENCE"` |
-| `DOCENTE_TEXT` | Docente objetivo (escríbelo **sin tildes**; el match las ignora) | `"MARROQUIN RODRIGUEZ, ERICK FRANCISCO"` |
+| `DOCENTE_TEXT` | Docente objetivo (escríbelo **sin tildes**; el match las ignora) | `"APELLIDOS, NOMBRES"` |
 | `POLL_MS` | Cada cuántos milisegundos recargar y revisar | `5000` (5 s) |
 | `DRY_RUN` | `true` = detecta y avisa, pero **no** hace el cambio (para probar) | `false` |
 
@@ -55,11 +52,11 @@ el curso, la fila y el botón usando una sección que **sí** tenga cupo, sin as
 
 1. En `CONFIG` pon:
    - `DRY_RUN: true`
-   - `DOCENTE_TEXT: "GARCIA PEREZ, LYNETTE"` (esa sección tiene cupos)
+   - `DOCENTE_TEXT: "APELLIDOS, NOMBRE"` (esa sección tiene cupos)
 2. Recarga la extensión y enciende el bot.
-3. Debe abrir DATA SCIENCE, **resaltar en naranja** la fila de Garcia Perez y mostrar un
+3. Debe abrir DATA SCIENCE, **resaltar en naranja** la fila del docente de prueba y mostrar un
    pop-up de *modo prueba* — **sin** hacer ningún cambio.
-4. Cuando confirmes que funciona, **revierte**: `DOCENTE_TEXT` de Marroquín y `DRY_RUN: false`.
+4. Cuando confirmes que funciona, **revierte**: `DOCENTE_TEXT` del que deseas y `DRY_RUN: false`.
 
 ---
 
