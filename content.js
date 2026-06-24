@@ -16,7 +16,7 @@
   // ----------------------------- CONFIGURACIÓN -----------------------------
   const CONFIG = {
     COURSE_TEXT:   "DATA SCIENCE",                         // acordeón a abrir
-    DOCENTE_TEXT:  "MARROQUIN RODRIGUEZ, ERICK FRANCISCO", // docente objetivo (sin tildes; el match ignora tildes)
+    DOCENTE_TEXT:  "APELLIDOS, NOMBRES", // docente objetivo (sin tildes; el match ignora tildes)
     CAMBIARSE_TEXT: "CAMBIARSE",
     ASIGNARSE_TEXT: "ASIGNARSE",
     POLL_MS:       5000,   // cada cuánto recargar para revisar cupos
