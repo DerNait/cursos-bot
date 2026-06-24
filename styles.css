@@ -1,0 +1,87 @@
+/* Panel flotante del bot */
+#uvgbot-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #ffffff;
+  border: 1px solid #d9d9d9;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  padding: 10px 12px;
+  width: 250px;
+  font-size: 13px;
+  color: #333;
+}
+
+#uvgbot-panel .uvgbot-title {
+  font-weight: 700;
+  font-size: 12px;
+  color: #555;
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
+}
+
+#uvgbot-toggle {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  color: #fff;
+  transition: background 0.15s ease;
+}
+
+#uvgbot-toggle.on  { background: #2e9e6b; }
+#uvgbot-toggle.on:hover  { background: #268a5d; }
+#uvgbot-toggle.off { background: #c0392b; }
+#uvgbot-toggle.off:hover { background: #a93226; }
+
+#uvgbot-status {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #555;
+  min-height: 16px;
+}
+
+/* Overlay de éxito */
+#uvgbot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#uvgbot-overlay .uvgbot-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 28px 34px;
+  max-width: 460px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#uvgbot-overlay .uvgbot-emoji { font-size: 52px; line-height: 1; }
+#uvgbot-overlay h2 { color: #2e9e6b; margin: 14px 0 8px; font-size: 22px; }
+#uvgbot-overlay p { color: #444; font-size: 15px; margin: 0 0 18px; }
+
+#uvgbot-overlay button {
+  background: #2e9e6b;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#uvgbot-overlay button:hover { background: #268a5d; }

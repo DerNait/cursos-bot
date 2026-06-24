@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "UVG Bot - Cambio de sección (DATA SCIENCE / Marroquín)",
+  "version": "2.0.0",
+  "description": "Vigila la sección del docente objetivo en Asignación de cursos UVG y se cambia automáticamente con clics reales (CDP) en cuanto se libera un cupo.",
+  "permissions": ["debugger"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://asignaciones.uvg.edu.gt/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
