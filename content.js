@@ -452,56 +452,39 @@
     console.log("[UVGBot] Lista de cursos cargada");
   }
 
-  // Contenedor (tarjeta) del curso: abarca el header y, al expandirse, el cuerpo
-  // con las secciones. Acotar las búsquedas a él evita confundir cursos entre sí
-  // cuando hay varios acordeones abiertos a la vez.
-  function getCourseCard(target) {
-    const header = findDeepestByText(target.course);
-    if (!header) return null;
-    const card = header.closest(
-      '[class*="card"], [class*="panel"], [class*="accordion"], [class*="item"]'
-    );
-    if (card) return card;
-    // Fallback: subir unos niveles para englobar el cuerpo desplegable.
-    let cur = header;
-    for (let i = 0; i < 4 && cur.parentElement; i++) cur = cur.parentElement;
-    return cur;
+  // El header (clickeable) del acordeón de un curso. Siempre visible, abierto o no.
+  function courseHeader(target) {
+    const node = findDeepestByText(target.course);
+    if (!node) return null;
+    return node.closest('a, button, [role="button"]') || node;
   }
 
-  // ¿Está abierto el acordeón de ESTE curso? Al expandir aparece, dentro de su
-  // tarjeta, el texto fijo "Cualquier duda…" (inmediato) o ya la fila del docente.
+  // ¿Está abierto el acordeón de ESTE curso? Al expandirse aparece la fila de su
+  // docente (que es único por curso, así que sirve de señal por-curso sin tener
+  // que adivinar el contenedor "tarjeta"). Búsqueda GLOBAL: como cada curso tiene
+  // su propio docente, no se confunden aunque haya varios acordeones abiertos.
   function courseIsOpen(target) {
-    const card = getCourseCard(target);
-    if (!card) return false;
-    return !!findDeepestByText("CUALQUIER DUDA", card) ||
-           !!findDeepestByText(target.docente, card);
+    return visible(findDeepestByText(target.docente));
   }
 
   // Abrir el acordeón del curso y esperar a que aparezca la fila del docente.
   async function expandCourse(target) {
     // Reintenta el clic SOLO mientras siga cerrado (nunca cierra uno ya abierto).
+    // El timeout es amplio (las secciones se cargan del servidor un par de
+    // segundos después de abrir) para NO reclickear y cerrarlo por accidente.
     for (let i = 0; i < 3 && !courseIsOpen(target); i++) {
-      const header = findDeepestByText(target.course);
-      if (!header) throw new Error("curso no encontrado: " + target.course);
-      const el = header.closest('a, button, [role="button"]') || header;
+      const el = courseHeader(target);
+      if (!el) throw new Error("curso no encontrado: " + target.course);
       await trustedClick(el);
-      try { await waitFor(() => courseIsOpen(target), { timeout: 4000 }); } catch (e) {}
+      try { await waitFor(() => courseIsOpen(target), { timeout: 9000 }); } catch (e) {}
     }
     if (!courseIsOpen(target)) throw new Error("no abrió el acordeón: " + target.course);
-
-    // Abierto: las filas de secciones se cargan del servidor un par de segundos
-    // después; esperar SIN volver a hacer clic.
-    await waitFor(
-      () => visible(findDeepestByText(target.docente, getCourseCard(target))),
-      { timeout: 10000 }
-    );
   }
 
-  // Devuelve el contenedor de la FILA del docente de ESTE curso (acotado a esa
-  // sección, buscando solo dentro de la tarjeta del curso).
+  // Devuelve el contenedor de la FILA del docente (acotado a esa sección). Búsqueda
+  // global del docente (único por curso) y luego sube hasta el bloque "DISPONIBLES".
   function getDocenteRow(target) {
-    const card = getCourseCard(target);
-    const node = findDeepestByText(target.docente, card);
+    const node = findDeepestByText(target.docente);
     if (!node) return null;
     let cur = node;
     for (let i = 0; i < 8 && cur; i++) {
