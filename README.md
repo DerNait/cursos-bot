@@ -1,7 +1,11 @@
-# 🤖 UVG Bot — Cambio automático de sección
+# 🤖 UVG Bot — Cambio automático de sección (multi-curso)
 
-Extensión de Chrome que vigila la sección de un docente en **Asignación de cursos UVG**
+Extensión de Chrome que vigila **varios cursos a la vez** en **Asignación de cursos UVG**
 (`asignaciones.uvg.edu.gt`) y se cambia **automáticamente** en cuanto se libera un cupo.
+
+Defines una **lista de objetivos**: por cada curso, el docente que quieres. En cada pasada el
+bot revisa **todos** tus cursos; cuando se libera cupo en cualquiera se asigna a ese y **sigue
+vigilando los demás** hasta completarlos todos.
 
 ---
 
@@ -20,26 +24,43 @@ Extensión de Chrome que vigila la sección de un docente en **Asignación de cu
 1. Entra a `https://asignaciones.uvg.edu.gt/home` e **inicia sesión**.
 2. Verás un panel flotante arriba a la derecha: **🤖 BOT CAMBIO DE SECCIÓN**.
 3. Pulsa **🔴 BOT APAGADO (encender)**. La página se recargará y el bot empezará a vigilar.
-4. **Deja la pestaña abierta.** Cada 5 segundos hará:
-   - Recargar → click en **ASIGNACIÓN** → abrir **DATA SCIENCE** → revisar la fila de Marroquín.
-5. En cuanto haya cupo, el bot solo hace **Cambiarse → OK → Asignarse** y te muestra un
-   **pop-up de éxito** (con un beep). El bot se **apaga solo** al terminar.
+4. **Deja la pestaña abierta.** Cada 5 segundos hará una *pasada*:
+   - Recargar → click en **ASIGNACIÓN** → para **cada curso** de tu lista: abrir su acordeón y
+     revisar la fila de su docente objetivo.
+5. En cuanto haya cupo en alguno, el bot hace **Cambiarse → OK → Asignarse**, marca ese curso
+   como listo y **sigue vigilando los que falten**. Cuando ya están **todos** asignados te
+   muestra un **pop-up de éxito** (con beep) y se **apaga solo**.
 6. Para detenerlo manualmente, pulsa **🟢 BOT ENCENDIDO (apagar)**.
 
-> El estado (encendido/apagado) sobrevive a las recargas. Si la sesión se cierra por
-> inactividad, vuelve a iniciar sesión y enciende el bot de nuevo.
+> El estado (encendido/apagado) y los cursos ya asignados sobreviven a las recargas. Si la
+> sesión se cierra por inactividad, vuelve a iniciar sesión y enciende el bot de nuevo.
 
 ---
 
 ## ⚙️ Ajustes
 
 Edita la sección `CONFIG` al inicio de **`content.js`** y recarga la extensión en
-`chrome://extensions` (botón de recargar ↻):
+`chrome://extensions` (botón de recargar ↻).
+
+Lo principal es la lista **`TARGETS`**: una pareja `{ course, docente }` por cada curso a
+vigilar. Agrega, quita o edita líneas según tus cursos:
+
+```js
+TARGETS: [
+  { course: "DATA SCIENCE",    docente: "MARROQUIN RODRIGUEZ, ERICK FRANCISCO" },
+  { course: "REDES",           docente: "APELLIDOS, NOMBRES" },
+  { course: "BASES DE DATOS",  docente: "APELLIDOS, NOMBRES" },
+],
+```
+
+- **`course`**: el texto del curso tal como aparece en el header del acordeón (basta una parte
+  distintiva, p.ej. `"DATA SCIENCE"`).
+- **`docente`**: el catedrático objetivo, **sin tildes** (el match las ignora).
+
+Otras opciones:
 
 | Opción | Qué hace | Por defecto |
 |---|---|---|
-| `COURSE_TEXT` | Texto del curso/acordeón a abrir | `"DATA SCIENCE"` |
-| `DOCENTE_TEXT` | Docente objetivo (escríbelo **sin tildes**; el match las ignora) | `"APELLIDOS, NOMBRES"` |
 | `POLL_MS` | Cada cuántos milisegundos recargar y revisar | `5000` (5 s) |
 | `DRY_RUN` | `true` = detecta y avisa, pero **no** hace el cambio (para probar) | `false` |
 
@@ -47,16 +68,17 @@ Edita la sección `CONFIG` al inicio de **`content.js`** y recarga la extensión
 
 ## 🧪 Probar sin riesgo (recomendado antes de usarlo en serio)
 
-Como la sección real de Marroquín está en 0 cupos, puedes verificar que el bot encuentra
-el curso, la fila y el botón usando una sección que **sí** tenga cupo, sin asignarte:
+Como los docentes reales que quieres suelen estar en 0 cupos, puedes verificar que el bot
+encuentra cada curso, su fila y el botón usando, **temporalmente**, docentes que **sí** tengan
+cupo, sin asignarte:
 
-1. En `CONFIG` pon:
-   - `DRY_RUN: true`
-   - `DOCENTE_TEXT: "APELLIDOS, NOMBRE"` (esa sección tiene cupos)
+1. En `CONFIG` pon `DRY_RUN: true` y, en `TARGETS`, docentes que tengan cupo en cada curso.
 2. Recarga la extensión y enciende el bot.
-3. Debe abrir DATA SCIENCE, **resaltar en naranja** la fila del docente de prueba y mostrar un
-   pop-up de *modo prueba* — **sin** hacer ningún cambio.
-4. Cuando confirmes que funciona, **revierte**: `DOCENTE_TEXT` del que deseas y `DRY_RUN: false`.
+3. Debe abrir **cada** curso de la lista, **resaltar en naranja** la fila del docente que tenga
+   cupo y mostrar un pop-up de *modo prueba* con el **resumen de cupos detectados** — **sin**
+   hacer ningún cambio.
+4. Cuando confirmes que funciona, **revierte**: pon en `TARGETS` los docentes reales que deseas
+   y `DRY_RUN: false`.
 
 ---
 

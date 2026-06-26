@@ -1,22 +1,31 @@
 /* ============================================================================
- * UVG Bot - Cambio automático de sección
- * Vigila la sección de un docente en "Asignación de cursos" y se cambia
- * automáticamente en cuanto aparece cupo.
+ * UVG Bot - Cambio automático de sección (MULTI-CURSO)
+ * Vigila VARIOS cursos a la vez, cada uno con su propio docente objetivo, y se
+ * cambia automáticamente en cuanto aparece cupo en cualquiera de ellos.
  *
  * Flujo en cada ciclo (la página se recarga cada POLL_MS):
  *   1. Pantalla inicial -> click en "ASIGNACIÓN"
- *   2. Carga la lista -> abrir el acordeón del curso (DATA SCIENCE)
- *   3. Buscar la fila del docente objetivo
- *   4. Si hay botón "Cambiarse": Cambiarse -> OK -> Asignarse -> aviso de éxito
- *   5. Si no hay cupo: recargar en POLL_MS y volver a intentar
+ *   2. Carga la lista de cursos
+ *   3. Para CADA curso pendiente de TARGETS (en una sola pasada):
+ *        abrir su acordeón -> buscar la fila de su docente objetivo
+ *        si hay "Cambiarse": Cambiarse -> OK -> Asignarse -> marcar curso hecho
+ *   4. Cuando un curso se asigna, se sigue vigilando los demás hasta completarlos
+ *      todos; al terminar todos, aviso de éxito y el bot se apaga solo.
+ *   5. Si no hay cupo en ninguno: recargar en POLL_MS y volver a intentar
  * ==========================================================================*/
 (function () {
   "use strict";
 
   // ----------------------------- CONFIGURACIÓN -----------------------------
   const CONFIG = {
-    COURSE_TEXT:   "DATA SCIENCE",                         // acordeón a abrir
-    DOCENTE_TEXT:  "APELLIDOS, NOMBRES", // docente objetivo (sin tildes; el match ignora tildes)
+    // Lista de objetivos: una pareja { course, docente } por curso a vigilar.
+    // - course:  texto del acordeón a abrir (lo que aparece en el header).
+    // - docente: docente objetivo, ESCRITO SIN TILDES (el match ignora tildes).
+    TARGETS: [
+      // Agrega más cursos aquí, por ejemplo:
+      // { course: "REDES",    docente: "APELLIDO NOMBRE, OTRO" },
+      // { course: "BASES DE DATOS", docente: "APELLIDO NOMBRE, OTRO" },
+    ],
     CAMBIARSE_TEXT: "CAMBIARSE",
     ASIGNARSE_TEXT: "ASIGNARSE",
     POLL_MS:       5000,   // cada cuánto recargar para revisar cupos
@@ -29,7 +38,8 @@
     KEEPALIVE_GAIN: 0.02,  // volumen (0–1); muy bajo, solo para que Chrome lo registre
   };
 
-  const LS = { active: "uvgbot_active", done: "uvgbot_done" };
+  // Persistencia: estado ON/OFF global y la LISTA de cursos ya asignados.
+  const LS = { active: "uvgbot_active", doneCourses: "uvgbot_done_courses" };
 
   // ------------------------------- HELPERS ---------------------------------
   function normalize(s) {
@@ -274,7 +284,24 @@
 
   // -------------------------------- ESTADO ---------------------------------
   function isActive() { return localStorage.getItem(LS.active) === "true"; }
-  function isDone()   { return localStorage.getItem(LS.done) === "true"; }
+
+  // Lista de cursos ya asignados (persistida entre recargas).
+  function getDoneCourses() {
+    try { return JSON.parse(localStorage.getItem(LS.doneCourses) || "[]"); }
+    catch (e) { return []; }
+  }
+  function isTargetDone(t) {
+    return getDoneCourses().some((c) => normalize(c) === normalize(t.course));
+  }
+  function markTargetDone(t) {
+    const done = getDoneCourses();
+    if (!done.some((c) => normalize(c) === normalize(t.course))) {
+      done.push(t.course);
+      localStorage.setItem(LS.doneCourses, JSON.stringify(done));
+    }
+  }
+  function pendingTargets() { return CONFIG.TARGETS.filter((t) => !isTargetDone(t)); }
+  function allDone() { return pendingTargets().length === 0; }
 
   let reloadTimer = null;
   function cancelReload() {
@@ -313,8 +340,8 @@
         renderToggle(btn);
         setStatus("Apagado.");
       } else {
-        // Encender: limpiar "done" y arrancar ciclo limpio recargando
-        localStorage.setItem(LS.done, "false");
+        // Encender: limpiar la lista de cursos hechos y arrancar ciclo limpio recargando
+        localStorage.setItem(LS.doneCourses, "[]");
         localStorage.setItem(LS.active, "true");
         startKeepAlive(); // arrancar audio con el gesto del clic (permite autoplay)
         renderToggle(btn);
@@ -355,13 +382,20 @@
   function showSuccess() {
     if (document.getElementById("uvgbot-overlay")) return;
     beep();
+    const done = getDoneCourses();
+    const lista = done.length
+      ? "<ul style='text-align:left;margin:0 auto;display:inline-block;'>" +
+          done.map((c) => "<li><b>" + c + "</b></li>").join("") + "</ul>"
+      : "";
     const ov = document.createElement("div");
     ov.id = "uvgbot-overlay";
     ov.innerHTML =
       '<div class="uvgbot-card">' +
       '<div class="uvgbot-emoji">✅</div>' +
       "<h2>¡Te asignaste correctamente!</h2>" +
-      "<p>Quedaste en la sección de <b>" + CONFIG.DOCENTE_TEXT + "</b> en <b>" + CONFIG.COURSE_TEXT + "</b>. El bot se apagó solo.</p>" +
+      "<p>Quedaste asignado en " + done.length + " curso(s):</p>" +
+      "<p>" + lista + "</p>" +
+      "<p>El bot se apagó solo.</p>" +
       '<button id="uvgbot-ok">Entendido</button>' +
       "</div>";
     document.body.appendChild(ov);
@@ -385,15 +419,20 @@
 
   // ------------------------------- LÓGICA ----------------------------------
 
+  // ¿Hay al menos un curso de la lista visible? (señal de que cargó la lista).
+  function anyCourseVisible() {
+    return CONFIG.TARGETS.some((t) => !!findDeepestByText(t.course));
+  }
+
   // Pantalla inicial -> click "ASIGNACIÓN" -> esperar la lista de cursos.
   async function ensureCourseList() {
-    if (findDeepestByText(CONFIG.COURSE_TEXT)) { console.log("[UVGBot] Lista ya visible"); return; }
+    if (anyCourseVisible()) { console.log("[UVGBot] Lista ya visible"); return; }
     // Espera a que aparezca el botón ASIGNACIÓN (o ya la lista).
     await waitFor(
-      () => findDeepestByText(CONFIG.COURSE_TEXT) || findBigButton("ASIGNACION"),
+      () => anyCourseVisible() || findBigButton("ASIGNACION"),
       { timeout: 12000 }
     );
-    if (findDeepestByText(CONFIG.COURSE_TEXT)) return;
+    if (anyCourseVisible()) return;
 
     const go = findBigButton("ASIGNACION");
     console.log("[UVGBot] Botón ASIGNACIÓN (el grande) encontrado:", go);
@@ -402,43 +441,66 @@
 
     // Algunos clicks no navegan a la primera; reintenta el click si tarda.
     try {
-      await waitFor(() => findDeepestByText(CONFIG.COURSE_TEXT), { timeout: 6000 });
+      await waitFor(anyCourseVisible, { timeout: 6000 });
     } catch (e) {
       console.log("[UVGBot] No navegó; reintento click en ASIGNACIÓN");
       const again = findBigButton("ASIGNACION");
       if (again) await trustedClick(again);
-      await waitFor(() => findDeepestByText(CONFIG.COURSE_TEXT), { timeout: 8000 });
+      await waitFor(anyCourseVisible, { timeout: 8000 });
     }
     console.log("[UVGBot] Lista de cursos cargada");
   }
 
-  // ¿Está abierto el acordeón? Al expandir aparece el texto fijo "Cualquier duda…"
-  // (inmediato), o ya la fila del docente.
-  function courseIsOpen() {
-    return !!findDeepestByText("CUALQUIER DUDA") ||
-           !!findDeepestByText(CONFIG.DOCENTE_TEXT);
+  // Contenedor (tarjeta) del curso: abarca el header y, al expandirse, el cuerpo
+  // con las secciones. Acotar las búsquedas a él evita confundir cursos entre sí
+  // cuando hay varios acordeones abiertos a la vez.
+  function getCourseCard(target) {
+    const header = findDeepestByText(target.course);
+    if (!header) return null;
+    const card = header.closest(
+      '[class*="card"], [class*="panel"], [class*="accordion"], [class*="item"]'
+    );
+    if (card) return card;
+    // Fallback: subir unos niveles para englobar el cuerpo desplegable.
+    let cur = header;
+    for (let i = 0; i < 4 && cur.parentElement; i++) cur = cur.parentElement;
+    return cur;
+  }
+
+  // ¿Está abierto el acordeón de ESTE curso? Al expandir aparece, dentro de su
+  // tarjeta, el texto fijo "Cualquier duda…" (inmediato) o ya la fila del docente.
+  function courseIsOpen(target) {
+    const card = getCourseCard(target);
+    if (!card) return false;
+    return !!findDeepestByText("CUALQUIER DUDA", card) ||
+           !!findDeepestByText(target.docente, card);
   }
 
   // Abrir el acordeón del curso y esperar a que aparezca la fila del docente.
-  async function expandCourse() {
+  async function expandCourse(target) {
     // Reintenta el clic SOLO mientras siga cerrado (nunca cierra uno ya abierto).
-    for (let i = 0; i < 3 && !courseIsOpen(); i++) {
-      const header = findDeepestByText(CONFIG.COURSE_TEXT);
-      if (!header) throw new Error("curso no encontrado");
-      const target = header.closest('a, button, [role="button"]') || header;
-      await trustedClick(target);
-      try { await waitFor(courseIsOpen, { timeout: 4000 }); } catch (e) {}
+    for (let i = 0; i < 3 && !courseIsOpen(target); i++) {
+      const header = findDeepestByText(target.course);
+      if (!header) throw new Error("curso no encontrado: " + target.course);
+      const el = header.closest('a, button, [role="button"]') || header;
+      await trustedClick(el);
+      try { await waitFor(() => courseIsOpen(target), { timeout: 4000 }); } catch (e) {}
     }
-    if (!courseIsOpen()) throw new Error("no abrió el acordeón");
+    if (!courseIsOpen(target)) throw new Error("no abrió el acordeón: " + target.course);
 
     // Abierto: las filas de secciones se cargan del servidor un par de segundos
     // después; esperar SIN volver a hacer clic.
-    await waitFor(() => visible(findDeepestByText(CONFIG.DOCENTE_TEXT)), { timeout: 10000 });
+    await waitFor(
+      () => visible(findDeepestByText(target.docente, getCourseCard(target))),
+      { timeout: 10000 }
+    );
   }
 
-  // Devuelve el contenedor de la FILA del docente (acotado a esa sección).
-  function getDocenteRow() {
-    const node = findDeepestByText(CONFIG.DOCENTE_TEXT);
+  // Devuelve el contenedor de la FILA del docente de ESTE curso (acotado a esa
+  // sección, buscando solo dentro de la tarjeta del curso).
+  function getDocenteRow(target) {
+    const card = getCourseCard(target);
+    const node = findDeepestByText(target.docente, card);
     if (!node) return null;
     let cur = node;
     for (let i = 0; i < 8 && cur; i++) {
@@ -448,9 +510,10 @@
     return node.parentElement;
   }
 
-  // Cambiarse -> OK -> Asignarse
-  async function doEnroll(btn) {
-    setStatus("¡Cupo encontrado! Cambiándote…");
+  // Cambiarse -> OK -> Asignarse (para UN curso). Marca el curso como hecho;
+  // la finalización (recargar para seguir, o éxito final) la decide runCycle.
+  async function doEnroll(btn, target) {
+    setStatus("¡Cupo en " + target.course + "! Cambiándote…");
     await trustedClick(btn);
 
     setStatus("Confirmando (OK)…");
@@ -461,14 +524,18 @@
     const asig = await waitFor(() => findClickable(CONFIG.ASIGNARSE_TEXT), { timeout: 15000 });
     await trustedClick(asig);
 
-    localStorage.setItem(LS.done, "true");
+    markTargetDone(target);
+    await sleep(1000);
+  }
+
+  // Todos los cursos asignados: apagar el bot y mostrar el éxito final.
+  async function finishAll() {
     localStorage.setItem(LS.active, "false");
     cancelReload();
     await detachDebugger();
     stopKeepAlive();
-
-    await sleep(1000);
-    setStatus("✅ ¡Asignado!");
+    await sleep(500);
+    setStatus("✅ ¡Todos los cursos asignados!");
     showSuccess();
   }
 
@@ -498,44 +565,59 @@
       return scheduleReload();
     }
 
-    setStatus("Abriendo " + CONFIG.COURSE_TEXT + "…");
-    try {
-      await expandCourse();
-    } catch (e) {
-      setStatus("No encontré el curso; reintentando…");
-      return scheduleReload();
+    // Recorre TODOS los cursos pendientes en esta pasada.
+    const pend = pendingTargets();
+    const detected = []; // cupos hallados en modo prueba
+    for (let i = 0; i < pend.length; i++) {
+      const t = pend[i];
+      setStatus("Revisando " + (i + 1) + "/" + pend.length + ": " + t.course + "…");
+      try {
+        await expandCourse(t);
+        const row = getDocenteRow(t);
+        if (!row) { console.warn("[UVGBot] No encontré al docente en", t.course); continue; }
+
+        const btn = clickableByText(CONFIG.CAMBIARSE_TEXT, { root: row, exact: true });
+        if (!btn) { console.log("[UVGBot] Sin cupo en", t.course); continue; }
+
+        // ¡Hay cupo en este curso!
+        if (CONFIG.DRY_RUN) {
+          try { row.style.outline = "3px solid orange"; } catch (e) {}
+          detected.push(t.course + " — " + t.docente);
+          console.log("[UVGBot] CUPO (modo prueba) en", t.course);
+          continue; // seguir revisando los demás
+        }
+
+        await doEnroll(btn, t);
+        // Tras "Asignarse" la página cambió de estado: recargar para continuar
+        // limpio con los cursos que falten (o mostrar éxito si ya están todos).
+        if (allDone()) return finishAll();
+        setStatus("✅ Asignado a " + t.course + ". Sigo con los demás…");
+        return scheduleReload();
+      } catch (e) {
+        // Un curso que falla no debe abortar la pasada: seguir con el siguiente.
+        console.warn("[UVGBot] Falló el objetivo", t.course, "—", e.message);
+        continue;
+      }
     }
 
-    const row = getDocenteRow();
-    if (!row) {
-      setStatus("No encontré al docente; reintentando…");
-      return scheduleReload();
-    }
-
-    const btn = clickableByText(CONFIG.CAMBIARSE_TEXT, { root: row, exact: true });
-    if (!btn) {
-      setStatus("Sin cupo aún. Reviso de nuevo en " + (CONFIG.POLL_MS / 1000) + "s…");
-      return scheduleReload();
-    }
-
-    // ¡Hay cupo!
+    // Fin de la pasada sin asignar nada.
     if (CONFIG.DRY_RUN) {
-      try { row.style.outline = "3px solid orange"; } catch (e) {}
       localStorage.setItem(LS.active, "false");
       cancelReload();
       await detachDebugger();
       stopKeepAlive();
-      setStatus("CUPO DETECTADO (modo prueba). No se hizo el cambio.");
-      showInfo("Se detectó cupo en la sección de " + CONFIG.DOCENTE_TEXT + " y se encontró el botón \"Cambiarse\". (DRY_RUN activo: no se hizo ningún cambio.)");
+      if (detected.length) {
+        setStatus("CUPO DETECTADO (modo prueba) en " + detected.length + " curso(s).");
+        showInfo("Se detectó cupo en:<br>• " + detected.join("<br>• ") +
+          "<br><br>(DRY_RUN activo: no se hizo ningún cambio.)");
+      } else {
+        setStatus("Modo prueba: sin cupos en ninguno de los cursos.");
+        showInfo("No se detectó cupo en ninguno de los cursos vigilados. (DRY_RUN activo: no se hizo ningún cambio.)");
+      }
       return;
     }
-
-    try {
-      await doEnroll(btn);
-    } catch (e) {
-      setStatus("Falló el cambio (" + e.message + "); reintentando…");
-      return scheduleReload();
-    }
+    setStatus("Sin cupo aún en " + pend.length + " curso(s). Reviso de nuevo en " + (CONFIG.POLL_MS / 1000) + "s…");
+    return scheduleReload();
   }
 
   // -------------------------------- INIT -----------------------------------
@@ -549,8 +631,8 @@
         { capture: true, passive: true })
     );
 
-    if (isDone()) {
-      setStatus("✅ Ya te asignaste. (Bot apagado)");
+    if (getDoneCourses().length > 0 && allDone()) {
+      setStatus("✅ Ya te asignaste a todos los cursos. (Bot apagado)");
       showSuccess();
       return;
     }
