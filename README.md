@@ -27,9 +27,11 @@ vigilando los demás** hasta completarlos todos.
 4. **Deja la pestaña abierta.** Cada 5 segundos hará una *pasada*:
    - Recargar → click en **ASIGNACIÓN** → para **cada curso** de tu lista: abrir su acordeón y
      revisar la fila de su docente objetivo.
-5. En cuanto haya cupo en alguno, el bot hace **Cambiarse → OK → Asignarse**, marca ese curso
-   como listo y **sigue vigilando los que falten**. Cuando ya están **todos** asignados te
-   muestra un **pop-up de éxito** (con beep) y se **apaga solo**.
+5. En cuanto haya cupo en alguno, el bot pulsa el botón de la fila —que puede ser
+   **Cambiarse** (si ya estabas en otra sección) o **Asignarse** (si aún no estabas en ninguna
+   sección de ese curso)—, confirma el **OK** si aparece, da **Asignarse** en el modal final,
+   marca ese curso como listo y **sigue vigilando los que falten**. Cuando ya están **todos**
+   asignados te muestra un **pop-up de éxito** (con beep) y se **apaga solo**.
 6. Para detenerlo manualmente, pulsa **🟢 BOT ENCENDIDO (apagar)**.
 
 > El estado (encendido/apagado) y los cursos ya asignados sobreviven a las recargas. Si la

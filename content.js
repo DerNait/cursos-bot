@@ -8,7 +8,8 @@
  *   2. Carga la lista de cursos
  *   3. Para CADA curso pendiente de TARGETS (en una sola pasada):
  *        abrir su acordeón -> buscar la fila de su docente objetivo
- *        si hay "Cambiarse": Cambiarse -> OK -> Asignarse -> marcar curso hecho
+ *        si hay botón de acción ("Cambiarse" o "Asignarse"):
+ *          click -> (OK si aparece) -> Asignarse -> marcar curso hecho
  *   4. Cuando un curso se asigna, se sigue vigilando los demás hasta completarlos
  *      todos; al terminar todos, aviso de éxito y el bot se apaga solo.
  *   5. Si no hay cupo en ninguno: recargar en POLL_MS y volver a intentar
@@ -510,18 +511,57 @@
     return node.parentElement;
   }
 
-  // Cambiarse -> OK -> Asignarse (para UN curso). Marca el curso como hecho;
-  // la finalización (recargar para seguir, o éxito final) la decide runCycle.
+  // Botón de acción de la fila: puede ser "Cambiarse" (si ya estás en otra sección
+  // del curso) o "Asignarse" (si aún no estás en ninguna sección de ese curso).
+  function findRowActionButton(row) {
+    return clickableByText(CONFIG.CAMBIARSE_TEXT, { root: row, exact: true }) ||
+           clickableByText(CONFIG.ASIGNARSE_TEXT, { root: row, exact: true });
+  }
+
+  // Botón "Asignarse" del MODAL final de confirmación (no el de la fila). Se busca
+  // dentro de un diálogo/modal y se excluye el botón original de la fila para no
+  // confundirlos cuando ambos dicen "Asignarse".
+  function findAsignarseConfirm(excludeEl) {
+    const T = normalize(CONFIG.ASIGNARSE_TEXT);
+    // 1) Preferir dentro de un modal/diálogo visible.
+    const dialogs = document.querySelectorAll(
+      '[role="dialog"], .modal, [class*="modal"], [class*="dialog"], [class*="popup"], [class*="swal"]'
+    );
+    for (const d of dialogs) {
+      if (!visible(d)) continue;
+      const b = clickableByText(CONFIG.ASIGNARSE_TEXT, { root: d, exact: false });
+      if (b && b !== excludeEl) return b;
+    }
+    // 2) Fallback: cualquier "Asignarse" clickeable visible distinto al de la fila.
+    for (const el of document.querySelectorAll(
+      'button, a, [role="button"], input[type="button"], input[type="submit"]'
+    )) {
+      if (!visible(el) || isOurs(el) || el === excludeEl) continue;
+      const t = normalize(el.value ? el.value : el.textContent);
+      if (t.includes(T)) return el;
+    }
+    return null;
+  }
+
+  // Cambiarse/Asignarse -> (OK si aparece) -> Asignarse (para UN curso). Marca el
+  // curso como hecho; la finalización (recargar o éxito final) la decide runCycle.
   async function doEnroll(btn, target) {
-    setStatus("¡Cupo en " + target.course + "! Cambiándote…");
+    setStatus("¡Cupo en " + target.course + "! Asignándote…");
     await trustedClick(btn);
 
-    setStatus("Confirmando (OK)…");
-    const ok = await waitFor(() => findClickable("OK", { exact: true }), { timeout: 8000 });
-    await trustedClick(ok);
+    // Si te CAMBIAS de sección aparece un modal de confirmación con botón "OK".
+    // Si te ASIGNAS por primera vez (no estabas en ninguna sección) puede NO salir:
+    // por eso es opcional y no falla si no aparece.
+    setStatus("Confirmando…");
+    try {
+      const ok = await waitFor(() => findClickable("OK", { exact: true }), { timeout: 5000 });
+      await trustedClick(ok);
+    } catch (e) {
+      console.log("[UVGBot] No apareció el modal OK (asignación directa); continúo.");
+    }
 
     setStatus("Esperando pantalla de asignación…");
-    const asig = await waitFor(() => findClickable(CONFIG.ASIGNARSE_TEXT), { timeout: 15000 });
+    const asig = await waitFor(() => findAsignarseConfirm(btn), { timeout: 15000 });
     await trustedClick(asig);
 
     markTargetDone(target);
@@ -576,7 +616,7 @@
         const row = getDocenteRow(t);
         if (!row) { console.warn("[UVGBot] No encontré al docente en", t.course); continue; }
 
-        const btn = clickableByText(CONFIG.CAMBIARSE_TEXT, { root: row, exact: true });
+        const btn = findRowActionButton(row);
         if (!btn) { console.log("[UVGBot] Sin cupo en", t.course); continue; }
 
         // ¡Hay cupo en este curso!
